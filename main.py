@@ -197,10 +197,31 @@ async def root():
                     border-radius: 4px;
                     cursor: pointer;
                     align-self: flex-end;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
 
                 .upload-button:hover {
                     opacity: 0.9;
+                }
+
+                .upload-button.loading {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+
+                .loading-spinner {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    border-radius: 50%;
+                    border-top-color: white;
+                    animation: spin 1s linear infinite;
+                }
+
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
                 }
 
                 .parsed-forms {
@@ -531,18 +552,29 @@ async def root():
                         return;
                     }
 
-                    for (const file of filesToUpload) {
-                        const fileItem = Array.from(document.querySelectorAll('.file-item')).find(
-                            item => item.querySelector('.file-name').textContent === file.name
-                        );
-                        const formType = fileItem.querySelector('.form-type-select').value;
-                        
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        formData.append('form_type', formType);
-                        formData.append('conversation_id', conversationId);
+                    const uploadButton = document.querySelector('.upload-button');
+                    const originalButtonText = uploadButton.textContent;
+                    
+                    // Show loading state
+                    uploadButton.classList.add('loading');
+                    uploadButton.disabled = true;
+                    uploadButton.innerHTML = `
+                        <div class="loading-spinner"></div>
+                        Uploading...
+                    `;
 
-                        try {
+                    try {
+                        for (const file of filesToUpload) {
+                            const fileItem = Array.from(document.querySelectorAll('.file-item')).find(
+                                item => item.querySelector('.file-name').textContent === file.name
+                            );
+                            const formType = fileItem.querySelector('.form-type-select').value;
+                            
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('form_type', formType);
+                            formData.append('conversation_id', conversationId);
+
                             const response = await fetch('/parse-tax-form', {
                                 method: 'POST',
                                 body: formData
@@ -556,17 +588,22 @@ async def root():
                             
                             // Display parsed form data
                             displayParsedForm(formId, formType, data);
-                            
-                        } catch (error) {
-                            console.error('Error:', error);
-                            alert(`Error uploading file ${file.name}. Please try again.`);
                         }
+                        
+                        // Clear file input and list
+                        document.getElementById('file-input').value = '';
+                        document.getElementById('file-list').innerHTML = '';
+                        filesToUpload = [];
+                        
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error uploading files. Please try again.');
+                    } finally {
+                        // Reset button state
+                        uploadButton.classList.remove('loading');
+                        uploadButton.disabled = false;
+                        uploadButton.textContent = originalButtonText;
                     }
-                    
-                    // Clear file input and list
-                    document.getElementById('file-input').value = '';
-                    document.getElementById('file-list').innerHTML = '';
-                    filesToUpload = [];
                 }
 
                 function displayParsedForm(formId, formType, data) {
